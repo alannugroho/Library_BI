@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\LegacyController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DashboardController;
@@ -42,22 +41,13 @@ Route::post('/admin/e-resources/delete', [ContentController::class, 'deleteResou
 Route::get('/admin/news', [ContentController::class, 'adminNews'])->middleware('auth');
 Route::post('/admin/news', [ContentController::class, 'saveNews'])->middleware('auth');
 Route::get('/admin/reports', [ContentController::class, 'reports'])->middleware('auth');
+Route::get('/admin/circulation', [CirculationController::class, 'index'])->middleware('auth');
 Route::get('/admin/catalog', [AdminCatalogController::class, 'index'])->middleware('auth');
 Route::post('/admin/catalog', [AdminCatalogController::class, 'store'])->middleware('auth');
 Route::post('/circulation', [CirculationController::class, 'store'])->middleware('auth');
 Route::post('/admin/maintenance/overdue', [CirculationController::class, 'overdue'])->middleware('auth');
 Route::post('/logout', [AuthController::class, 'destroy'])
-    ->middleware('auth')
-    ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class);
+    ->middleware('auth');
 Route::get('/catalog', [CatalogController::class, 'index']);
 Route::get('/search', [CatalogController::class, 'index']);
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth');
-Route::any('/{any?}', [LegacyController::class, 'handle'])
-    ->where('any', '.*')
-    ->withoutMiddleware([
-        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        \Illuminate\Cookie\Middleware\EncryptCookies::class,
-    ]);

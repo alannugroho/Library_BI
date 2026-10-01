@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Illuminate\Validation\ValidationException;
@@ -51,7 +50,6 @@ final class AuthController extends Controller
 
         RateLimiter::clear($key);
         $request->session()->regenerate();
-        $this->syncLegacySession();
 
         return redirect('/dashboard');
     }
@@ -69,34 +67,7 @@ final class AuthController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        $this->clearLegacySession();
 
         return redirect('/');
-    }
-
-    private function syncLegacySession(): void
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
-        $user = Auth::user();
-        $_SESSION['user'] = [
-            'id' => (int) $user->id,
-            'email' => (string) $user->email,
-            'role' => (string) $user->role,
-            'status' => (string) $user->status,
-        ];
-        $_SESSION['csrf_token'] ??= bin2hex(random_bytes(32));
-    }
-
-    private function clearLegacySession(): void
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
-        $_SESSION = [];
-        session_regenerate_id(true);
     }
 }

@@ -7,6 +7,34 @@ use Illuminate\Support\Facades\DB;
 
 final class CirculationController extends Controller
 {
+    public function index()
+    {
+        abort_unless(auth()->check() && auth()->user()->role === 'pustakawan', 403);
+
+        $pendingPickups = DB::table('reservations as r')
+            ->join('users as u', 'u.id', '=', 'r.user_id')
+            ->join('catalog_books as cb', 'cb.id', '=', 'r.catalog_id')
+            ->leftJoin('book_items as bi', function ($join): void {
+                $join->on('bi.catalog_id', '=', 'r.catalog_id')
+                    ->where('bi.status', 'reserved');
+            })
+            ->where('r.status', 'pending_pickup')
+            ->select('r.reservation_code', 'r.created_at', 'u.email', 'u.nip', 'cb.title', 'bi.barcode')
+            ->orderBy('r.created_at')
+            ->get();
+
+        $activeLoans = DB::table('circulations as c')
+            ->join('users as u', 'u.id', '=', 'c.user_id')
+            ->join('book_items as bi', 'bi.id', '=', 'c.book_item_id')
+            ->join('catalog_books as cb', 'cb.id', '=', 'bi.catalog_id')
+            ->whereIn('c.status', ['active', 'overdue'])
+            ->select('c.status', 'c.due_date', 'u.email', 'u.nip', 'bi.barcode', 'cb.title')
+            ->orderBy('c.due_date')
+            ->get();
+
+        return view('admin.circulation', compact('pendingPickups', 'activeLoans'));
+    }
+
     public function store(Request $request)
     {
         abort_unless(auth()->check() && auth()->user()->role === 'pustakawan', 403);
@@ -39,9 +67,9 @@ final class CirculationController extends Controller
                     }
                 }
             });
-            return redirect('/dashboard')->with('flash', ['type' => 'success', 'message' => 'Transaksi sirkulasi berhasil diproses.']);
+            return redirect('/admin/circulation')->with('flash', ['type' => 'success', 'message' => 'Transaksi sirkulasi berhasil diproses.']);
         } catch (\RuntimeException $e) {
-            return redirect('/dashboard')->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+            return redirect('/admin/circulation')->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
     }
 
@@ -49,6 +77,6 @@ final class CirculationController extends Controller
     {
         abort_unless(auth()->check() && auth()->user()->role === 'pustakawan', 403);
         $count = DB::table('circulations')->where('status', 'active')->where('due_date', '<', today())->update(['status' => 'overdue']);
-        return redirect('/dashboard')->with('flash', ['type' => 'success', 'message' => "$count peminjaman ditandai sebagai terlambat."]);
+        return redirect('/admin/circulation')->with('flash', ['type' => 'success', 'message' => "$count peminjaman ditandai sebagai terlambat."]);
     }
 }

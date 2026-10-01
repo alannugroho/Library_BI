@@ -3,15 +3,18 @@
 The project now boots through Laravel 13 and uses Laravel's `.env`,
 Composer, Artisan, routing, middleware pipeline, logging, and test runner.
 
-The existing application is temporarily isolated under `legacy/` and is
-invoked through `App\Http\Controllers\LegacyController`. This compatibility
-layer preserves all existing URLs and business behavior while the controllers,
-models, Blade views, and form requests are migrated incrementally.
+All application routes now run through Laravel controllers, middleware, and
+Blade views. The legacy catch-all entry point has been removed, so unknown
+URLs correctly return Laravel's 404 response instead of executing the old
+front controller.
 
 The current database is already compatible with the library schema. The
 baseline migration `2026_09_30_000000_baseline_digital_library_schema.php`
 is intentionally a no-op when the `users` table exists. On a fresh database it
-loads the normalized schema from `legacy/database/schema.sql`.
+loads the normalized schema from `database/schema.sql`.
+
+Uploaded digital books and news clippings are stored on Laravel's `public`
+filesystem disk under `storage/app/public/uploads`.
 
 Useful commands:
 
@@ -24,6 +27,6 @@ php artisan route:list
 php artisan test
 ```
 
-Do not run `migrate:fresh` against the shared development database. The legacy
-PowerShell smoke suite remains available at `legacy/tests/smoke.ps1` until the
-remaining compatibility routes are converted to native Laravel feature tests.
+Do not run `migrate:fresh` against the shared development database. The
+historical `legacy/` directory has been removed after the native Laravel
+routes and storage paths were verified.

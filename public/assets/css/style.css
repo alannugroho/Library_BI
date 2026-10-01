@@ -188,6 +188,23 @@ h2 { margin-bottom: 0; font-size: clamp(30px, 4vw, 46px); line-height: 1.05; let
 .report-table th, .report-table td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; }
 .report-table th { color: var(--muted); background: #eef4f0; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .report-table tr:last-child td { border-bottom: 0; }
+.muted-text { color: var(--muted); font-size: 11px; }
+.live-status-table-wrapper { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--white); }
+.live-status-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.live-status-table th, .live-status-table td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+.live-status-table th { color: var(--muted); background: #eef4f0; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.live-status-table tr:last-child td { border-bottom: 0; }
+.live-status-table td strong, .live-status-table td small { display: block; }
+.live-status-table td small { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.status-badge { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.status-available, .status-digital { color: #21603a; background: #e8f0e8; }
+.status-reserved { color: #775a13; background: #fff3cd; }
+.status-borrowed { color: #24557a; background: #e4f0fb; }
+.status-overdue { color: #8d2c2c; background: #fde7e7; }
+.status-lost, .status-maintenance { color: #5b4b67; background: #eee8f4; }
+.button-small { padding: 8px 11px; font-size: 10px; }
+.action-group { display: flex; align-items: center; gap: 8px; }
+.hidden { display: none !important; }
 @media (max-width: 760px) {
     .container { width: min(100% - 28px, 560px); }
     .navigation { min-height: 68px; }

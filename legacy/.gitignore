@@ -1,4 +1,0 @@
-
-.env
-/storage/uploads/*
-!/storage/uploads/.gitkeep

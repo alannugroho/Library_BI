@@ -12,7 +12,7 @@ return new class extends Migration
             return;
         }
 
-        $schema = file_get_contents(base_path('legacy/database/schema.sql'));
+        $schema = file_get_contents(database_path('schema.sql'));
         if ($schema === false) {
             throw new RuntimeException('Library schema file could not be read.');
         }

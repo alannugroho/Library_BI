@@ -27,22 +27,74 @@
             <a class="button button-outline" href="/admin/e-resources">Kelola E-Resources</a>
         </div>
         <div class="admin-shortcuts">
+            <a class="button button-outline" href="/admin/circulation">Kelola sirkulasi</a>
             <a class="button button-outline" href="/admin/reports">Lihat laporan</a>
         </div>
-        <div class="section-heading dashboard-heading"><div><p class="eyebrow">Operasional</p><h2>Kelola sirkulasi</h2></div></div>
+        <div class="section-heading dashboard-heading"><div><p class="eyebrow">Operasional</p><h2>Monitoring sirkulasi</h2></div><a class="button button-primary" href="/admin/circulation">Buka kelola sirkulasi →</a></div>
         <div class="metric-grid">
             <div class="metric-card"><strong>{{ (int) ($circulationSummary->active_loans ?? 0) }}</strong><span>Peminjaman aktif</span></div>
             <div class="metric-card"><strong>{{ (int) ($circulationSummary->overdue_loans ?? 0) }}</strong><span>Terlambat</span></div>
             <div class="metric-card"><strong>{{ (int) ($circulationSummary->returned_today ?? 0) }}</strong><span>Kembali hari ini</span></div>
         </div>
-        <form class="circulation-form" method="post" action="/circulation">
-            @csrf
-            <label for="circulation-action">Tindakan</label><select id="circulation-action" name="action"><option value="borrow">Pinjam</option><option value="return">Kembali</option><option value="extend">Perpanjang</option></select>
-            <label for="member-identifier">NIP atau email anggota</label><input id="member-identifier" name="member_identifier" required>
-            <label for="barcode">Barcode buku</label><input id="barcode" name="barcode" required>
-            <button class="button button-primary">Proses transaksi</button>
-        </form>
-        <form method="post" action="/admin/maintenance/overdue">@csrf<button class="button button-outline">Perbarui status overdue</button></form>
+        <div class="section-heading dashboard-heading">
+            <div>
+                <p class="eyebrow">Inventaris live</p>
+                <h2>Status semua buku</h2>
+            </div>
+            <span class="muted-text">Diperbarui saat halaman dimuat</span>
+        </div>
+        @if ($bookStatuses->isEmpty())
+            <div class="empty-state"><h2>Belum ada koleksi.</h2><p>Tambahkan buku melalui menu kelola katalog.</p></div>
+        @else
+            <div class="live-status-table-wrapper">
+                <table class="live-status-table">
+                    <thead>
+                        <tr>
+                            <th>Buku</th>
+                            <th>Barcode</th>
+                            <th>Lokasi</th>
+                            <th>Status</th>
+                            <th>Detail</th>
+                            <th>Jatuh tempo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($bookStatuses as $book)
+                            @php
+                                $statusLabels = [
+                                    'available' => 'Tersedia',
+                                    'reserved' => 'Direservasi',
+                                    'borrowed' => 'Dipinjam',
+                                    'overdue' => 'Terlambat',
+                                    'digital' => 'Digital',
+                                    'lost' => 'Hilang',
+                                    'maintenance' => 'Perawatan',
+                                ];
+                            @endphp
+                            <tr>
+                                <td>
+                                    <strong>{{ $book->title }}</strong>
+                                    <small>{{ $book->type === 'digital' ? 'Koleksi digital' : 'Koleksi fisik' }}</small>
+                                </td>
+                                <td>{{ $book->barcode ?: '—' }}</td>
+                                <td>{{ $book->shelf_location ?: '—' }}</td>
+                                <td><span class="status-badge status-{{ $book->live_status }}">{{ $statusLabels[$book->live_status] ?? ucfirst($book->live_status) }}</span></td>
+                                <td>
+                                    @if (in_array($book->live_status, ['borrowed', 'overdue'], true))
+                                        {{ $book->borrower_email ?: 'Peminjam tidak diketahui' }}
+                                    @elseif ($book->live_status === 'reserved')
+                                        Menunggu diambil{{ $book->pickup_code ? ' · ' . $book->pickup_code : '' }}
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td>{{ $book->due_date ? \Illuminate\Support\Carbon::parse($book->due_date)->format('d M Y') : '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
         <div class="section-heading dashboard-heading"><div><p class="eyebrow">Reservasi &amp; antrean</p><h2>Buku dalam tahap reservasi</h2></div></div>
         @if ($activeReservations->isEmpty())
             <div class="empty-state"><h2>Belum ada reservasi aktif.</h2><p>Reservasi baru dan daftar tunggu anggota akan tampil di sini.</p></div>

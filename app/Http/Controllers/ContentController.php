@@ -24,9 +24,9 @@ final class ContentController extends Controller
     {
         $clipping = DB::table('news_clippings')->where('id', $id)->first();
         abort_unless($clipping, 404);
-        $path = base_path('legacy/storage/uploads/news/' . basename((string) $clipping->file_path));
-        abort_unless(is_file($path), 404);
-        return response()->file($path);
+        $path = 'uploads/news/' . basename((string) $clipping->file_path);
+        abort_unless(Storage::disk('public')->exists($path), 404);
+        return response()->file(Storage::disk('public')->path($path));
     }
 
     public function adminNews()
@@ -46,7 +46,7 @@ final class ContentController extends Controller
         ]);
         $file = $request->file('clipping_file');
         $name = \Illuminate\Support\Str::random(32) . '.' . $file->getClientOriginalExtension();
-        $file->move(base_path('legacy/storage/uploads/news'), $name);
+        Storage::disk('public')->putFileAs('uploads/news', $file, $name);
         DB::table('news_clippings')->insert(['title' => $data['title'], 'source_media' => $data['source_media'], 'publish_date' => $data['publish_date'], 'file_path' => $name, 'uploaded_by' => auth()->id()]);
         return redirect('/admin/news');
     }
@@ -70,9 +70,9 @@ final class ContentController extends Controller
         abort_unless(auth()->check(), 403);
         $book = DB::table('catalog_books')->where('id', $id)->where('type', 'digital')->first();
         abort_unless($book, 404);
-        $path = base_path('legacy/storage/uploads/' . basename((string) $book->digital_file_path));
-        abort_unless(is_file($path), 404);
-        return response()->file($path, ['Content-Disposition' => 'inline; filename="digital-library-' . $id . '.pdf"']);
+        $path = 'uploads/' . basename((string) $book->digital_file_path);
+        abort_unless(Storage::disk('public')->exists($path), 404);
+        return response()->file(Storage::disk('public')->path($path), ['Content-Disposition' => 'inline; filename="digital-library-' . $id . '.pdf"']);
     }
 
     public function adminResources()
@@ -101,7 +101,10 @@ final class ContentController extends Controller
 
     public function reports(Request $request)
     {
-        $this->librarian();
+        if (!$this->librarian()) {
+            return redirect('/dashboard');
+        }
+
         $report = in_array($request->query('report'), ['circulation', 'fines', 'reservations', 'catalog'], true) ? $request->query('report') : 'circulation';
         $rows = match ($report) {
             'fines' => DB::table('circulations as c')->join('users as u', 'u.id', '=', 'c.user_id')->join('book_items as bi', 'bi.id', '=', 'c.book_item_id')->join('catalog_books as cb', 'cb.id', '=', 'bi.catalog_id')->where('c.fine_amount', '>', 0)->select('u.email', 'cb.title', 'c.due_date', 'c.return_date', 'c.status', 'c.fine_amount')->orderByDesc('c.fine_amount')->limit(500)->get(),
@@ -111,8 +114,28 @@ final class ContentController extends Controller
         };
         if ($request->query('format') === 'csv') {
             return response()->streamDownload(function () use ($rows) {
-                $out = fopen('php://output', 'w'); if ($rows->isNotEmpty()) { fputcsv($out, array_keys((array) $rows->first())); foreach ($rows as $row) fputcsv($out, (array) $row); } fclose($out);
-            }, "digital-library-$report.csv", ['Content-Type' => 'text/csv']);
+                $out = fopen('php://output', 'wb');
+                if ($out === false) {
+                    throw new \RuntimeException('CSV output stream could not be opened.');
+                }
+
+                // BOM and sep directive let Excel detect UTF-8 and comma columns.
+                fwrite($out, "\xEF\xBB\xBFsep=,\r\n");
+                if ($rows->isNotEmpty()) {
+                    $headers = array_keys((array) $rows->first());
+                    fputcsv($out, $headers, ',', '"', '\\', "\r\n");
+                    foreach ($rows as $row) {
+                        fputcsv($out, array_map(
+                            static fn ($value): string => $value === null ? '' : (string) $value,
+                            array_values((array) $row)
+                        ), ',', '"', '\\', "\r\n");
+                    }
+                }
+                fclose($out);
+            }, "digital-library-$report.csv", [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
         }
         return view('admin.reports', compact('report', 'rows'));
     }

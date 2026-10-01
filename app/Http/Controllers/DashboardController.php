@@ -57,6 +57,42 @@ final class DashboardController extends Controller
                 ->orderBy('r.created_at')
                 ->limit(100)
                 ->get();
+            $data['bookStatuses'] = DB::table('catalog_books as cb')
+                ->leftJoin('book_items as bi', 'bi.catalog_id', '=', 'cb.id')
+                ->leftJoin('circulations as c', function ($join): void {
+                    $join->on('c.book_item_id', '=', 'bi.id')
+                        ->whereIn('c.status', ['active', 'overdue']);
+                })
+                ->leftJoin('users as borrower', 'borrower.id', '=', 'c.user_id')
+                ->leftJoin('reservations as r', function ($join): void {
+                    $join->on('r.catalog_id', '=', 'cb.id')
+                        ->where('r.status', 'pending_pickup');
+                })
+                ->select(
+                    'cb.id as catalog_id',
+                    'cb.title',
+                    'cb.type',
+                    'bi.id as item_id',
+                    'bi.barcode',
+                    'bi.shelf_location',
+                    'bi.status as item_status',
+                    'borrower.email as borrower_email',
+                    'c.due_date',
+                    'r.reservation_code as pickup_code',
+                )
+                ->selectRaw("
+                    CASE
+                        WHEN cb.type = 'digital' THEN 'digital'
+                        WHEN c.id IS NOT NULL AND c.due_date < CURDATE() THEN 'overdue'
+                        WHEN c.id IS NOT NULL THEN 'borrowed'
+                        WHEN bi.status = 'reserved' OR r.id IS NOT NULL THEN 'reserved'
+                        WHEN bi.status = 'available' THEN 'available'
+                        ELSE bi.status
+                    END AS live_status
+                ")
+                ->orderBy('cb.title')
+                ->orderBy('bi.barcode')
+                ->get();
         }
 
         return view('dashboard', $data);
