@@ -14,7 +14,7 @@ final class ProposalController extends Controller
         return view('proposals', [
             'proposals' => DB::table('book_proposals')
                 ->where('user_id', auth()->id())
-                ->select('title', 'author', 'status', 'created_at')
+                ->select('title', 'author', 'publisher', 'status', 'created_at')
                 ->orderByDesc('created_at')
                 ->get(),
         ]);
@@ -26,11 +26,13 @@ final class ProposalController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'author' => ['nullable', 'string', 'max:255'],
+            'publisher' => ['nullable', 'string', 'max:255'],
         ]);
         DB::table('book_proposals')->insert([
             'user_id' => auth()->id(),
             'title' => $data['title'],
             'author' => $data['author'] ?: null,
+            'publisher' => $data['publisher'] ?: null,
         ]);
 
         return redirect('/proposals')->with('flash', [

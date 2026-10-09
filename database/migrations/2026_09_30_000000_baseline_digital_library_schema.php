@@ -12,13 +12,19 @@ return new class extends Migration
             return;
         }
 
-        $schema = file_get_contents(database_path('schema.sql'));
+        $driver = DB::connection()->getDriverName();
+        $schemaFile = $driver === 'sqlite' ? 'schema.sqlite.sql' : 'schema.sql';
+
+        $schema = file_get_contents(database_path($schemaFile));
         if ($schema === false) {
             throw new RuntimeException('Library schema file could not be read.');
         }
 
-        $schema = preg_replace('/^\s*CREATE DATABASE.*?;\s*/ims', '', $schema, 1);
-        $schema = preg_replace('/^\s*USE\s+digital_library_bi\s*;\s*/im', '', $schema, 1);
+        if ($driver !== 'sqlite') {
+            $schema = preg_replace('/^\s*CREATE DATABASE.*?;\s*/ims', '', $schema, 1);
+            $schema = preg_replace('/^\s*USE\s+digital_library_bi\s*;\s*/im', '', $schema, 1);
+        }
+
         DB::unprepared($schema);
     }
 

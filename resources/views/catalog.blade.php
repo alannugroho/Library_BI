@@ -13,7 +13,8 @@
             <p class="eyebrow">OPAC Digital Library</p>
             <div class="section-heading"><h1 class="page-heading">{{ $pageTitle }}</h1><div class="row-actions"><a class="button button-outline" href="/dashboard">← Dashboard</a><a class="button button-text" href="/">Beranda</a></div></div>
             <form class="catalog-filters" action="/catalog" method="get">
-                <input type="search" name="q" value="{{ $query }}" placeholder="Cari judul, penulis, atau penerbit">
+                <label class="sr-only" for="catalog-q">Cari judul, penulis, atau penerbit</label>
+                <input id="catalog-q" type="search" name="q" value="{{ $query }}" placeholder="Cari judul, penulis, atau penerbit">
                 <select name="type" aria-label="Jenis koleksi">
                     <option value="">Semua jenis</option>
                     <option value="physical" @selected($type === 'physical')>Fisik</option>

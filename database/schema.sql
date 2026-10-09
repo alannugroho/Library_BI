@@ -95,6 +95,7 @@ CREATE TABLE book_proposals (
     user_id INT UNSIGNED NOT NULL,
     title VARCHAR(255) NOT NULL,
     author VARCHAR(255) NULL,
+    publisher VARCHAR(255) NULL,
     status ENUM('submitted', 'reviewed', 'approved', 'rejected') NOT NULL DEFAULT 'submitted',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_book_proposals_user
@@ -107,7 +108,7 @@ CREATE TABLE news_clippings (
     title VARCHAR(255) NOT NULL,
     source_media VARCHAR(100) NULL,
     publish_date DATE NULL,
-    file_path VARCHAR(255) NOT NULL,
+    url_link TEXT NOT NULL,
     uploaded_by INT UNSIGNED NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_news_clippings_user
