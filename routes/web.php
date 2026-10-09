@@ -1,18 +1,18 @@
 <?php
 
+use App\Http\Controllers\AdminCatalogController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\RegistrationController;
-use App\Http\Controllers\ProposalController;
-use App\Http\Controllers\ReservationController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\ContentController;
-use App\Http\Controllers\AdminCatalogController;
 use App\Http\Controllers\CirculationController;
+use App\Http\Controllers\ContentController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProposalController;
+use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\ReservationController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [AuthController::class, 'create'])->name('login');
 Route::get('/', [HomeController::class, 'index']);
@@ -31,7 +31,6 @@ Route::post('/admin/members', [AdminController::class, 'updateMember'])->middlew
 Route::get('/admin/proposals', [AdminController::class, 'proposals'])->middleware('auth');
 Route::post('/admin/proposals', [AdminController::class, 'updateProposal'])->middleware('auth');
 Route::get('/news', [ContentController::class, 'news']);
-Route::get('/news/file', fn (Request $request, ContentController $controller) => $controller->newsFile($request->integer('id')));
 Route::get('/e-resources', [ContentController::class, 'eResources']);
 Route::get('/e-resources/go', fn (Request $request, ContentController $controller) => $controller->resourceGo($request->integer('id')))->middleware('auth');
 Route::get('/digital', fn (Request $request, ContentController $controller) => $controller->digital($request->integer('id')))->middleware('auth');
@@ -40,6 +39,7 @@ Route::post('/admin/e-resources', [ContentController::class, 'saveResource'])->m
 Route::post('/admin/e-resources/delete', [ContentController::class, 'deleteResource'])->middleware('auth');
 Route::get('/admin/news', [ContentController::class, 'adminNews'])->middleware('auth');
 Route::post('/admin/news', [ContentController::class, 'saveNews'])->middleware('auth');
+Route::post('/admin/news/delete', [ContentController::class, 'deleteNews'])->middleware('auth');
 Route::get('/admin/reports', [ContentController::class, 'reports'])->middleware('auth');
 Route::get('/admin/circulation', [CirculationController::class, 'index'])->middleware('auth');
 Route::get('/admin/catalog', [AdminCatalogController::class, 'index'])->middleware('auth');

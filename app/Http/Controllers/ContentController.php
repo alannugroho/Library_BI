@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 final class ContentController extends Controller
@@ -15,40 +16,77 @@ final class ContentController extends Controller
         $clippings = DB::table('news_clippings')
             ->when($query !== '', fn ($q) => $q->where(fn ($n) => $n->where('title', 'like', "%$query%")->orWhere('source_media', 'like', "%$query%")))
             ->when($source !== '', fn ($q) => $q->where('source_media', $source))
-            ->select('id', 'title', 'source_media', 'publish_date')
+            ->select('id', 'title', 'source_media', 'publish_date', 'url_link')
             ->orderByDesc('publish_date')->orderByDesc('id')->limit(100)->get();
+
         return view('news', compact('clippings', 'query', 'source'));
     }
 
-    public function newsFile(int $id)
+    public function adminNews(Request $request)
     {
-        $clipping = DB::table('news_clippings')->where('id', $id)->first();
-        abort_unless($clipping, 404);
-        $path = 'uploads/news/' . basename((string) $clipping->file_path);
-        abort_unless(Storage::disk('public')->exists($path), 404);
-        return response()->file(Storage::disk('public')->path($path));
-    }
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
+        $edit = $request->integer('edit')
+            ? DB::table('news_clippings')->where('id', $request->integer('edit'))->first()
+            : null;
 
-    public function adminNews()
-    {
-        if (!$this->librarian()) return redirect('/dashboard');
-        return view('admin.news', ['clippings' => DB::table('news_clippings')->orderByDesc('publish_date')->orderByDesc('id')->get()]);
+        return view('admin.news', [
+            'clippings' => DB::table('news_clippings')->orderByDesc('publish_date')->orderByDesc('id')->get(),
+            'edit' => $edit,
+        ]);
     }
 
     public function saveNews(Request $request)
     {
-        if (!$this->librarian()) return redirect('/dashboard');
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'source_media' => ['required', 'string', 'max:100'],
             'publish_date' => ['required', 'date'],
-            'clipping_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:20480'],
+            'url_link' => ['required', 'url:http,https', 'max:2048'],
         ]);
-        $file = $request->file('clipping_file');
-        $name = \Illuminate\Support\Str::random(32) . '.' . $file->getClientOriginalExtension();
-        Storage::disk('public')->putFileAs('uploads/news', $file, $name);
-        DB::table('news_clippings')->insert(['title' => $data['title'], 'source_media' => $data['source_media'], 'publish_date' => $data['publish_date'], 'file_path' => $name, 'uploaded_by' => auth()->id()]);
-        return redirect('/admin/news');
+        $id = $request->integer('news_id');
+        if ($id) {
+            DB::table('news_clippings')->where('id', $id)->update([
+                'title' => $data['title'],
+                'source_media' => $data['source_media'],
+                'publish_date' => $data['publish_date'],
+                'url_link' => $data['url_link'],
+            ]);
+
+            return redirect('/admin/news')->with('flash', ['type' => 'success', 'message' => 'Klipping berita berhasil diperbarui.']);
+        }
+        $newsData = [
+            'title' => $data['title'],
+            'source_media' => $data['source_media'],
+            'publish_date' => $data['publish_date'],
+            'url_link' => $data['url_link'],
+            'uploaded_by' => auth()->id(),
+        ];
+        if (Schema::hasColumn('news_clippings', 'file_path')) {
+            $newsData['file_path'] = '';
+        }
+        DB::table('news_clippings')->insert($newsData);
+
+        return redirect('/admin/news')->with('flash', ['type' => 'success', 'message' => 'Klipping berita berhasil disimpan.']);
+    }
+
+    public function deleteNews(Request $request)
+    {
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
+        $deleted = DB::table('news_clippings')->where('id', $request->integer('news_id'))->delete();
+
+        return redirect('/admin/news')->with([
+            'flash' => [
+                'type' => $deleted ? 'success' : 'error',
+                'message' => $deleted ? 'Klipping berita berhasil dihapus.' : 'Klipping berita tidak ditemukan.',
+            ],
+        ]);
     }
 
     public function eResources()
@@ -62,6 +100,7 @@ final class ContentController extends Controller
         $resource = DB::table('e_resources')->where('id', $id)->first();
         abort_unless($resource && filter_var($resource->url_link, FILTER_VALIDATE_URL) && in_array(parse_url($resource->url_link, PHP_URL_SCHEME), ['http', 'https'], true), 404);
         DB::table('e_resource_activities')->insert(['e_resource_id' => $id, 'user_id' => auth()->id(), 'activity_type' => 'click']);
+
         return redirect()->away($resource->url_link);
     }
 
@@ -70,14 +109,18 @@ final class ContentController extends Controller
         abort_unless(auth()->check(), 403);
         $book = DB::table('catalog_books')->where('id', $id)->where('type', 'digital')->first();
         abort_unless($book, 404);
-        $path = 'uploads/' . basename((string) $book->digital_file_path);
+        $path = 'uploads/'.basename((string) $book->digital_file_path);
         abort_unless(Storage::disk('public')->exists($path), 404);
-        return response()->file(Storage::disk('public')->path($path), ['Content-Disposition' => 'inline; filename="digital-library-' . $id . '.pdf"']);
+
+        return response()->file(Storage::disk('public')->path($path), ['Content-Disposition' => 'inline; filename="digital-library-'.$id.'.pdf"']);
     }
 
     public function adminResources()
     {
-        if (!$this->librarian()) return redirect('/dashboard');
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
+
         return view('admin.e-resources', ['resources' => DB::table('e_resources as er')->leftJoin('e_resource_activities as era', function ($join) {
             $join->on('era.e_resource_id', '=', 'er.id')->where('era.activity_type', 'click');
         })->select('er.id', 'er.title', 'er.url_link', 'er.description')->selectRaw('COUNT(era.id) AS click_count')->groupBy('er.id', 'er.title', 'er.url_link', 'er.description')->orderBy('er.title')->get()]);
@@ -85,23 +128,29 @@ final class ContentController extends Controller
 
     public function saveResource(Request $request)
     {
-        if (!$this->librarian()) return redirect('/dashboard');
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
         $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'url_link' => ['required', 'url:http,https'], 'description' => ['nullable', 'string']]);
         $id = $request->integer('resource_id');
         $id ? DB::table('e_resources')->where('id', $id)->update($data) : DB::table('e_resources')->insert($data);
-        return redirect('/admin/e-resources');
+
+        return redirect('/admin/e-resources')->with('flash', ['type' => 'success', 'message' => $id ? 'E-Resource berhasil diperbarui.' : 'E-Resource berhasil ditambahkan.']);
     }
 
     public function deleteResource(Request $request)
     {
-        if (!$this->librarian()) return redirect('/dashboard');
+        if (! $this->librarian()) {
+            return redirect('/dashboard');
+        }
         DB::table('e_resources')->where('id', $request->integer('resource_id'))->delete();
-        return redirect('/admin/e-resources');
+
+        return redirect('/admin/e-resources')->with('flash', ['type' => 'success', 'message' => 'E-Resource berhasil dihapus.']);
     }
 
     public function reports(Request $request)
     {
-        if (!$this->librarian()) {
+        if (! $this->librarian()) {
             return redirect('/dashboard');
         }
 
@@ -137,8 +186,12 @@ final class ContentController extends Controller
                 'X-Content-Type-Options' => 'nosniff',
             ]);
         }
+
         return view('admin.reports', compact('report', 'rows'));
     }
 
-    private function librarian(): bool { return auth()->check() && auth()->user()->role === 'pustakawan'; }
+    private function librarian(): bool
+    {
+        return auth()->check() && auth()->user()->role === 'pustakawan';
+    }
 }
