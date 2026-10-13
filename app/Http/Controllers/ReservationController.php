@@ -14,16 +14,17 @@ final class ReservationController extends Controller
         $data = $request->validate(['catalog_id' => ['required', 'integer', 'min:1']]);
         $catalogUrl = '/catalog';
         if ($request->filled('return_query') || $request->filled('return_type')) {
-            $catalogUrl .= '?' . http_build_query(array_filter([
+            $catalogUrl .= '?'.http_build_query(array_filter([
                 'q' => trim((string) $request->input('return_query')),
                 'type' => trim((string) $request->input('return_type')),
+                'genre' => trim((string) $request->input('return_genre')),
             ]));
         }
 
         try {
             DB::transaction(function () use ($data, $mode): void {
                 $catalog = DB::table('catalog_books')->where('id', $data['catalog_id'])->lockForUpdate()->first();
-                if (!$catalog || $catalog->type !== 'physical') {
+                if (! $catalog || $catalog->type !== 'physical' || $catalog->access_mode !== 'borrowable') {
                     throw new \RuntimeException('Koleksi ini tidak dapat dipesan secara fisik.');
                 }
                 $activeCount = DB::table('reservations')
@@ -41,13 +42,13 @@ final class ReservationController extends Controller
                 if ($waiting && $item) {
                     throw new \RuntimeException('Buku sudah tersedia. Silakan gunakan tombol reservasi.');
                 }
-                if (!$waiting && !$item) {
+                if (! $waiting && ! $item) {
                     throw new \RuntimeException('Buku sedang tidak tersedia. Gunakan tombol daftar tunggu.');
                 }
                 DB::table('reservations')->insert([
                     'user_id' => auth()->id(),
                     'catalog_id' => $data['catalog_id'],
-                    'reservation_code' => $waiting ? null : 'RSV-' . Str::upper(Str::random(8)),
+                    'reservation_code' => $waiting ? null : 'RSV-'.Str::upper(Str::random(8)),
                     'status' => $waiting ? 'waiting_list' : 'pending_pickup',
                 ]);
                 if ($item) {
@@ -55,6 +56,7 @@ final class ReservationController extends Controller
                 }
             });
             $message = $mode === 'waitlist' ? 'Anda berhasil masuk daftar tunggu buku ini.' : 'Buku berhasil direservasi.';
+
             return redirect($catalogUrl)->with('flash', ['type' => 'success', 'message' => $message]);
         } catch (\RuntimeException $exception) {
             return redirect($catalogUrl)->with('flash', ['type' => 'error', 'message' => $exception->getMessage()]);

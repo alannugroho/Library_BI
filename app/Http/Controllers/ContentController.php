@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 
 final class ContentController extends Controller
 {
@@ -96,23 +95,19 @@ final class ContentController extends Controller
 
     public function resourceGo(int $id)
     {
-        abort_unless(auth()->check() && in_array(auth()->user()->role, ['anggota', 'pustakawan'], true), 403);
+        if (! auth()->check() || ! in_array(auth()->user()->role, ['anggota', 'pustakawan'], true)) {
+            return redirect('/e-resources')->with([
+                'flash' => [
+                    'type' => 'error',
+                    'message' => 'Maaf Anda tidak memiliki akses untuk ini.',
+                ],
+            ]);
+        }
         $resource = DB::table('e_resources')->where('id', $id)->first();
         abort_unless($resource && filter_var($resource->url_link, FILTER_VALIDATE_URL) && in_array(parse_url($resource->url_link, PHP_URL_SCHEME), ['http', 'https'], true), 404);
         DB::table('e_resource_activities')->insert(['e_resource_id' => $id, 'user_id' => auth()->id(), 'activity_type' => 'click']);
 
         return redirect()->away($resource->url_link);
-    }
-
-    public function digital(int $id)
-    {
-        abort_unless(auth()->check(), 403);
-        $book = DB::table('catalog_books')->where('id', $id)->where('type', 'digital')->first();
-        abort_unless($book, 404);
-        $path = 'uploads/'.basename((string) $book->digital_file_path);
-        abort_unless(Storage::disk('public')->exists($path), 404);
-
-        return response()->file(Storage::disk('public')->path($path), ['Content-Disposition' => 'inline; filename="digital-library-'.$id.'.pdf"']);
     }
 
     public function adminResources()
@@ -154,12 +149,11 @@ final class ContentController extends Controller
             return redirect('/dashboard');
         }
 
-        $report = in_array($request->query('report'), ['circulation', 'fines', 'reservations', 'catalog'], true) ? $request->query('report') : 'circulation';
+        $report = in_array($request->query('report'), ['circulation', 'reservations', 'catalog'], true) ? $request->query('report') : 'circulation';
         $rows = match ($report) {
-            'fines' => DB::table('circulations as c')->join('users as u', 'u.id', '=', 'c.user_id')->join('book_items as bi', 'bi.id', '=', 'c.book_item_id')->join('catalog_books as cb', 'cb.id', '=', 'bi.catalog_id')->where('c.fine_amount', '>', 0)->select('u.email', 'cb.title', 'c.due_date', 'c.return_date', 'c.status', 'c.fine_amount')->orderByDesc('c.fine_amount')->limit(500)->get(),
             'reservations' => DB::table('reservations as r')->join('users as u', 'u.id', '=', 'r.user_id')->join('catalog_books as cb', 'cb.id', '=', 'r.catalog_id')->select('u.email', 'cb.title', 'r.reservation_code', 'r.status', 'r.created_at')->orderByDesc('r.created_at')->limit(500)->get(),
             'catalog' => DB::table('catalog_books as cb')->leftJoin('book_items as bi', 'bi.catalog_id', '=', 'cb.id')->select('cb.title', 'cb.type', 'cb.author', 'cb.publisher', 'cb.publication_year')->selectRaw('COUNT(bi.id) AS item_count, COUNT(CASE WHEN bi.status = "available" THEN 1 END) AS available_stock, COUNT(CASE WHEN bi.status = "borrowed" THEN 1 END) AS borrowed_stock')->groupBy('cb.id', 'cb.title', 'cb.type', 'cb.author', 'cb.publisher', 'cb.publication_year')->limit(500)->get(),
-            default => DB::table('circulations as c')->join('users as u', 'u.id', '=', 'c.user_id')->join('book_items as bi', 'bi.id', '=', 'c.book_item_id')->join('catalog_books as cb', 'cb.id', '=', 'bi.catalog_id')->select('c.id', 'u.email', 'cb.title', 'bi.barcode', 'c.borrow_date', 'c.due_date', 'c.return_date', 'c.status', 'c.fine_amount')->orderByDesc('c.id')->limit(500)->get(),
+            default => DB::table('circulations as c')->join('users as u', 'u.id', '=', 'c.user_id')->join('book_items as bi', 'bi.id', '=', 'c.book_item_id')->join('catalog_books as cb', 'cb.id', '=', 'bi.catalog_id')->select('c.id', 'u.email', 'cb.title', 'bi.barcode', 'c.borrow_date', 'c.due_date', 'c.return_date', 'c.status')->orderByDesc('c.id')->limit(500)->get(),
         };
         if ($request->query('format') === 'csv') {
             return response()->streamDownload(function () use ($rows) {

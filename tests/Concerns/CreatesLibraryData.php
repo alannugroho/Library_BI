@@ -19,6 +19,14 @@ trait CreatesLibraryData
     /**
      * @param  array<string, mixed>  $attributes
      */
+    protected function makeExternal(array $attributes = []): User
+    {
+        return User::factory()->eksternal()->create($attributes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
     protected function makeLibrarian(array $attributes = []): User
     {
         return User::factory()->pustakawan()->create($attributes);
@@ -46,5 +54,25 @@ trait CreatesLibraryData
         ], $attributes));
 
         return DB::table('book_items')->where('id', $id)->first();
+    }
+
+    protected function makeDigitalBook(int $copies = 1): CatalogBook
+    {
+        return CatalogBook::factory()->digital($copies)->create();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function makeDigitalLoan(User $user, CatalogBook $book, array $attributes = []): int
+    {
+        return DB::table('digital_loans')->insertGetId(array_merge([
+            'user_id' => $user->id,
+            'catalog_id' => $book->id,
+            'borrowed_at' => now(),
+            'due_at' => now()->addDays(7),
+            'status' => 'active',
+            'created_at' => now(),
+        ], $attributes));
     }
 }

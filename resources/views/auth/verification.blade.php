@@ -4,6 +4,6 @@
 <body>@include('partials.site-header')<main class="error-page">
     <p class="eyebrow">Digital Library BI</p>
     <h1>{{ $verified ? 'Email terverifikasi' : 'Tautan tidak valid' }}</h1>
-    <p>{{ $verified ? 'Email Anda sudah terverifikasi. Akun tetap menunggu persetujuan pustakawan.' : 'Tautan verifikasi sudah kedaluwarsa atau tidak dapat digunakan.' }}</p>
+    <p>{{ $verified ? 'Email Anda sudah terverifikasi. Akun Anda kini aktif dan siap digunakan, silakan masuk.' : 'Tautan verifikasi sudah kedaluwarsa atau tidak dapat digunakan.' }}</p>
     <a class="button button-primary" href="/login">Ke halaman masuk</a>
 </main></body></html>

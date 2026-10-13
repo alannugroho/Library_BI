@@ -20,6 +20,18 @@ class CirculationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_librarian_can_choose_an_active_member_by_nip(): void
+    {
+        $member = $this->makeMember(['nip' => 'NIP-200']);
+
+        $this->actingAs($this->makeLibrarian())
+            ->get('/admin/circulation')
+            ->assertOk()
+            ->assertSee('list="active-members"', false)
+            ->assertSee('NIP-200')
+            ->assertSee($member->email);
+    }
+
     public function test_librarian_can_borrow_an_available_copy(): void
     {
         $librarian = $this->makeLibrarian();

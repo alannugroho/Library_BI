@@ -118,4 +118,15 @@ class ReservationTest extends TestCase
         $response->assertSessionHas('flash.type', 'error');
         $this->assertDatabaseCount('reservations', 0);
     }
+
+    public function test_member_cannot_reserve_a_reading_room_collection(): void
+    {
+        $book = $this->makeCatalogBook(['access_mode' => 'reading_room']);
+        $this->makeBookItem($book);
+
+        $response = $this->actingAs($this->makeMember())->post('/reserve', ['catalog_id' => $book->id]);
+
+        $response->assertSessionHas('flash.type', 'error');
+        $this->assertDatabaseCount('reservations', 0);
+    }
 }

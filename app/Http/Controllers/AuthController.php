@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class AuthController extends Controller
 {
@@ -27,14 +27,14 @@ final class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $key = strtolower($credentials['email']) . '|' . $request->ip();
+        $key = strtolower($credentials['email']).'|'.$request->ip();
         if (RateLimiter::tooManyAttempts($key, 5)) {
             throw ValidationException::withMessages([
                 'email' => 'Terlalu banyak percobaan login. Silakan coba lagi beberapa menit lagi.',
             ]);
         }
 
-        if (!Auth::attempt($credentials)) {
+        if (! Auth::attempt($credentials)) {
             RateLimiter::hit($key, 300);
             throw ValidationException::withMessages([
                 'email' => 'Email atau kata sandi tidak sesuai.',
@@ -42,9 +42,12 @@ final class AuthController extends Controller
         }
 
         if (Auth::user()->status !== 'active') {
+            $status = Auth::user()->status;
             Auth::logout();
             throw ValidationException::withMessages([
-                'email' => 'Akun belum aktif. Silakan menunggu verifikasi atau persetujuan pustakawan.',
+                'email' => $status === 'pending'
+                    ? 'Akun belum aktif. Silakan verifikasi email Anda melalui tautan yang kami kirim saat pendaftaran.'
+                    : 'Akun Anda nonaktif. Silakan hubungi pustakawan.',
             ]);
         }
 

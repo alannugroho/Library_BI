@@ -17,7 +17,7 @@
     @endif
 
     @if ($user->role === 'pustakawan')
-        <div class="admin-shortcut"><a class="button button-primary" href="/admin/catalog">Kelola katalog &amp; inventaris →</a></div>
+        <div class="admin-shortcut"><a class="button button-primary" href="/admin/catalog">Kelola katalog &amp; inventaris</a></div>
         <div class="admin-shortcuts">
             <a class="button button-outline" href="/admin/members">Kelola anggota{{ $pendingMembers > 0 ? " ($pendingMembers)" : '' }}</a>
             <a class="button button-outline" href="/admin/proposals">Tinjau usulan{{ $pendingProposals > 0 ? " ($pendingProposals)" : '' }}</a>
@@ -30,7 +30,7 @@
             <a class="button button-outline" href="/admin/circulation">Kelola sirkulasi</a>
             <a class="button button-outline" href="/admin/reports">Lihat laporan</a>
         </div>
-        <div class="section-heading dashboard-heading"><div><p class="eyebrow">Operasional</p><h2>Monitoring sirkulasi</h2></div><a class="button button-primary" href="/admin/circulation">Buka kelola sirkulasi →</a></div>
+        <div class="section-heading dashboard-heading"><div><p class="eyebrow">Operasional</p><h2>Monitoring sirkulasi</h2></div><a class="button button-primary" href="/admin/circulation">Buka kelola sirkulasi</a></div>
         <div class="metric-grid">
             <div class="metric-card"><strong>{{ (int) ($circulationSummary->active_loans ?? 0) }}</strong><span>Peminjaman aktif</span></div>
             <div class="metric-card"><strong>{{ (int) ($circulationSummary->overdue_loans ?? 0) }}</strong><span>Terlambat</span></div>
@@ -76,8 +76,8 @@
                                     <strong>{{ $book->title }}</strong>
                                     <small>{{ $book->type === 'digital' ? 'Koleksi digital' : 'Koleksi fisik' }}</small>
                                 </td>
-                                <td>{{ $book->barcode ?: '—' }}</td>
-                                <td>{{ $book->shelf_location ?: '—' }}</td>
+                                <td>{{ $book->barcode ?: '-' }}</td>
+                                <td>{{ $book->shelf_location ?: '-' }}</td>
                                 <td><span class="status-badge status-{{ $book->live_status }}">{{ $statusLabels[$book->live_status] ?? ucfirst($book->live_status) }}</span></td>
                                 <td>
                                     @if (in_array($book->live_status, ['borrowed', 'overdue'], true))
@@ -85,10 +85,10 @@
                                     @elseif ($book->live_status === 'reserved')
                                         Menunggu diambil{{ $book->pickup_code ? ' · ' . $book->pickup_code : '' }}
                                     @else
-                                        —
+                                        -
                                     @endif
                                 </td>
-                                <td>{{ $book->due_date ? \Illuminate\Support\Carbon::parse($book->due_date)->format('d M Y') : '—' }}</td>
+                                <td>{{ $book->due_date ? \Illuminate\Support\Carbon::parse($book->due_date)->format('d M Y') : '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -112,10 +112,21 @@
         @endif
     @endif
     @if ($user->role === 'anggota')
-        <div class="admin-shortcut"><a class="button button-outline" href="/proposals">Usulkan koleksi baru →</a></div>
+        <div class="admin-shortcut"><a class="button button-outline" href="/proposals">Usulkan koleksi baru</a></div>
     @endif
 
-    <div class="section-heading dashboard-heading"><h2>Reservasi saya</h2><a class="button button-text" href="/catalog">Cari koleksi →</a></div>
+    @if ($digitalLoans->isNotEmpty())
+        <div class="section-heading dashboard-heading"><h2>Pinjaman digital saya</h2><a class="button button-text" href="/catalog?type=digital">Telusuri koleksi digital</a></div>
+        <div class="reservation-list">@foreach ($digitalLoans as $loan)
+            <div class="reservation-row"><div><strong>{{ $loan->title }}</strong><small>Jatuh tempo {{ \Illuminate\Support\Carbon::parse($loan->due_at)->format('d M Y H:i') }}</small></div>
+            <div class="action-group">
+                <a class="button button-small button-primary" href="/digital/stream?id={{ (int) $loan->catalog_id }}#toolbar=0" target="_blank" rel="noopener">Baca</a>
+                <form method="post" action="/digital/return">@csrf<input type="hidden" name="catalog_id" value="{{ (int) $loan->catalog_id }}"><button class="button button-small button-outline" type="submit">Kembalikan</button></form>
+            </div></div>
+        @endforeach</div>
+    @endif
+
+    <div class="section-heading dashboard-heading"><h2>Reservasi saya</h2><a class="button button-text" href="/catalog">Cari koleksi</a></div>
     @if ($reservations->isEmpty())
         <div class="empty-state"><h2>Belum ada reservasi.</h2><p>Telusuri katalog untuk menemukan buku yang Anda butuhkan.</p></div>
     @else

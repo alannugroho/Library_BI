@@ -43,7 +43,7 @@ final class AdminController extends Controller
 
         return view('admin.proposals', [
             'proposals' => DB::table('book_proposals as bp')->join('users as u', 'u.id', '=', 'bp.user_id')
-                ->select('bp.id', 'bp.title', 'bp.author', 'bp.publisher', 'bp.status', 'bp.created_at', 'u.email')
+                ->select('bp.id', 'bp.title', 'bp.author', 'bp.publisher', 'bp.publication_year', 'bp.isbn_issn', 'bp.purpose', 'bp.status', 'bp.created_at', 'u.email')
                 ->orderByRaw("CASE WHEN bp.status = 'submitted' THEN 0 ELSE 1 END")->orderByDesc('bp.created_at')->get(),
         ]);
     }

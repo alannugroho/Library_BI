@@ -27,19 +27,24 @@ class CatalogBookFactory extends Factory
             'publication_year' => fake()->numberBetween(1990, (int) date('Y')),
             'isbn' => fake()->isbn13(),
             'udc_classification' => null,
+            'collection_type' => 'book',
+            'genre' => 'Umum',
+            'access_mode' => 'borrowable',
             'type' => 'physical',
             'digital_file_path' => null,
+            'digital_copies' => 1,
         ];
     }
 
     /**
      * Indicate that the book is a digital collection.
      */
-    public function digital(): static
+    public function digital(int $copies = 1): static
     {
         return $this->state(fn (array $attributes): array => [
             'type' => 'digital',
-            'digital_file_path' => 'uploads/books/'.Str::uuid().'.pdf',
+            'digital_file_path' => Str::uuid().'.pdf',
+            'digital_copies' => $copies,
         ]);
     }
 }
