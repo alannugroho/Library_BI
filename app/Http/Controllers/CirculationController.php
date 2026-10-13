@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\DigitalLending;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 final class CirculationController extends Controller
@@ -10,6 +12,8 @@ final class CirculationController extends Controller
     public function index()
     {
         abort_unless(auth()->check() && auth()->user()->role === 'pustakawan', 403);
+
+        DigitalLending::sweepExpired();
 
         $pendingPickups = DB::table('reservations as r')
             ->join('users as u', 'u.id', '=', 'r.user_id')
@@ -32,7 +36,32 @@ final class CirculationController extends Controller
             ->orderBy('c.due_date')
             ->get();
 
-        return view('admin.circulation', compact('pendingPickups', 'activeLoans'));
+        $digitalLoans = DB::table('digital_loans as dl')
+            ->join('users as u', 'u.id', '=', 'dl.user_id')
+            ->join('catalog_books as cb', 'cb.id', '=', 'dl.catalog_id')
+            ->where('dl.status', 'active')
+            ->select('dl.id', 'dl.due_at', 'u.email', 'u.nip', 'cb.title')
+            ->orderBy('dl.due_at')
+            ->get();
+
+        $digitalWaitlist = DB::table('reservations as r')
+            ->join('users as u', 'u.id', '=', 'r.user_id')
+            ->join('catalog_books as cb', 'cb.id', '=', 'r.catalog_id')
+            ->where('cb.type', 'digital')
+            ->where('r.status', 'waiting_list')
+            ->select('u.email', 'u.nip', 'cb.title', 'r.created_at')
+            ->orderBy('r.created_at')
+            ->get();
+
+        $members = DB::table('users')
+            ->where('role', 'anggota')
+            ->where('status', 'active')
+            ->select('nip', 'email')
+            ->orderBy('nip')
+            ->orderBy('email')
+            ->get();
+
+        return view('admin.circulation', compact('pendingPickups', 'activeLoans', 'digitalLoans', 'digitalWaitlist', 'members'));
     }
 
     public function store(Request $request)
@@ -42,31 +71,50 @@ final class CirculationController extends Controller
         try {
             DB::transaction(function () use ($data): void {
                 $member = DB::table('users')->where(fn ($q) => $q->where('email', $data['member_identifier'])->orWhere('nip', $data['member_identifier']))->where('role', 'anggota')->where('status', 'active')->lockForUpdate()->first();
-                if (!$member) throw new \RuntimeException('Anggota tidak ditemukan atau tidak aktif.');
+                if (! $member) {
+                    throw new \RuntimeException('Anggota tidak ditemukan atau tidak aktif.');
+                }
                 $item = DB::table('book_items')->where('barcode', $data['barcode'])->lockForUpdate()->first();
-                if (!$item) throw new \RuntimeException('Barcode buku tidak ditemukan.');
+                if (! $item) {
+                    throw new \RuntimeException('Barcode buku tidak ditemukan.');
+                }
                 if ($data['action'] === 'borrow') {
-                    if (!in_array($item->status, ['available', 'reserved'], true)) throw new \RuntimeException('Buku tidak tersedia untuk dipinjam.');
+                    if (! in_array($item->status, ['available', 'reserved'], true)) {
+                        throw new \RuntimeException('Buku tidak tersedia untuk dipinjam.');
+                    }
                     $reservation = DB::table('reservations')->where('user_id', $member->id)->where('catalog_id', $item->catalog_id)->where('status', 'pending_pickup')->lockForUpdate()->first();
-                    if ($item->status === 'reserved' && !$reservation) throw new \RuntimeException('Buku sedang dicadangkan untuk anggota lain.');
+                    if ($item->status === 'reserved' && ! $reservation) {
+                        throw new \RuntimeException('Buku sedang dicadangkan untuk anggota lain.');
+                    }
                     DB::table('circulations')->insert(['user_id' => $member->id, 'book_item_id' => $item->id, 'borrow_date' => today(), 'due_date' => today()->addDays(14), 'status' => 'active']);
                     DB::table('book_items')->where('id', $item->id)->update(['status' => 'borrowed']);
-                    if ($reservation) DB::table('reservations')->where('id', $reservation->id)->update(['status' => 'completed']);
+                    if ($reservation) {
+                        DB::table('reservations')->where('id', $reservation->id)->update(['status' => 'completed']);
+                    }
                 } else {
                     $loan = DB::table('circulations')->where('book_item_id', $item->id)->where('user_id', $member->id)->whereIn('status', ['active', 'overdue'])->lockForUpdate()->first();
-                    if (!$loan) throw new \RuntimeException('Peminjaman aktif tidak ditemukan.');
+                    if (! $loan) {
+                        throw new \RuntimeException('Peminjaman aktif tidak ditemukan.');
+                    }
                     if ($data['action'] === 'extend') {
-                        if ($loan->status !== 'active') throw new \RuntimeException('Peminjaman terlambat tidak dapat diperpanjang.');
-                        DB::table('circulations')->where('id', $loan->id)->update(['due_date' => \Illuminate\Support\Carbon::parse($loan->due_date)->addDays(14)]);
+                        if ($loan->status !== 'active') {
+                            throw new \RuntimeException('Peminjaman terlambat tidak dapat diperpanjang.');
+                        }
+                        DB::table('circulations')->where('id', $loan->id)->update(['due_date' => Carbon::parse($loan->due_date)->addDays(14)]);
                     } else {
-                        $fine = max(0, today()->diffInDays(\Illuminate\Support\Carbon::parse($loan->due_date), false) * -1) * 1000;
+                        $fine = max(0, today()->diffInDays(Carbon::parse($loan->due_date), false) * -1) * 1000;
                         DB::table('circulations')->where('id', $loan->id)->update(['return_date' => today(), 'status' => 'returned', 'fine_amount' => $fine]);
                         DB::table('book_items')->where('id', $item->id)->update(['status' => 'available']);
                         $waiting = DB::table('reservations')->where('catalog_id', $item->catalog_id)->where('status', 'waiting_list')->orderBy('created_at')->lockForUpdate()->first();
-                        if ($waiting) { $code = 'RSV-' . strtoupper(bin2hex(random_bytes(4))); DB::table('reservations')->where('id', $waiting->id)->update(['status' => 'pending_pickup', 'reservation_code' => $code]); DB::table('book_items')->where('id', $item->id)->update(['status' => 'reserved']); }
+                        if ($waiting) {
+                            $code = 'RSV-'.strtoupper(bin2hex(random_bytes(4)));
+                            DB::table('reservations')->where('id', $waiting->id)->update(['status' => 'pending_pickup', 'reservation_code' => $code]);
+                            DB::table('book_items')->where('id', $item->id)->update(['status' => 'reserved']);
+                        }
                     }
                 }
             });
+
             return redirect('/admin/circulation')->with('flash', ['type' => 'success', 'message' => 'Transaksi sirkulasi berhasil diproses.']);
         } catch (\RuntimeException $e) {
             return redirect('/admin/circulation')->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
@@ -77,6 +125,8 @@ final class CirculationController extends Controller
     {
         abort_unless(auth()->check() && auth()->user()->role === 'pustakawan', 403);
         $count = DB::table('circulations')->where('status', 'active')->where('due_date', '<', today())->update(['status' => 'overdue']);
+        DigitalLending::sweepExpired();
+
         return redirect('/admin/circulation')->with('flash', ['type' => 'success', 'message' => "$count peminjaman ditandai sebagai terlambat."]);
     }
 }

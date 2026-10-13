@@ -17,9 +17,19 @@ final class DashboardController extends Controller
             ->limit(20)
             ->get();
 
+        $digitalLoans = DB::table('digital_loans as dl')
+            ->join('catalog_books as cb', 'cb.id', '=', 'dl.catalog_id')
+            ->where('dl.user_id', $user->id)
+            ->where('dl.status', 'active')
+            ->where('dl.due_at', '>=', now())
+            ->select('dl.catalog_id', 'dl.due_at', 'cb.title')
+            ->orderBy('dl.due_at')
+            ->get();
+
         $data = [
             'user' => $user,
             'reservations' => $reservations,
+            'digitalLoans' => $digitalLoans,
             'pendingMembers' => 0,
             'pendingProposals' => 0,
             'circulationSummary' => null,

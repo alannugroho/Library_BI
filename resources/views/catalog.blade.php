@@ -20,6 +20,12 @@
                     <option value="physical" @selected($type === 'physical')>Fisik</option>
                     <option value="digital" @selected($type === 'digital')>Digital</option>
                 </select>
+                <select name="genre" aria-label="Genre koleksi">
+                    <option value="">Semua genre</option>
+                    @foreach ($genres as $availableGenre)
+                        <option value="{{ $availableGenre }}" @selected($genre === $availableGenre)>{{ $availableGenre }}</option>
+                    @endforeach
+                </select>
                 <button class="button button-primary" type="submit">Cari</button>
             </form>
             @if ($flash)<div class="notice notice-{{ $flash['type'] }}">{{ $flash['message'] }}</div>@endif
@@ -31,19 +37,70 @@
                 <div class="catalog-grid">
                     @foreach ($books as $book)
                         <article class="catalog-card">
-                            <div class="catalog-type">{{ $book['type'] === 'digital' ? 'DIGITAL' : 'FISIK' }}</div>
+                            <div class="catalog-type">{{ strtoupper($book['collection_type']) }} · {{ $book['type'] === 'digital' ? 'DIGITAL' : 'FISIK' }}</div>
                             <h2>{{ $book['title'] }}</h2>
                             <p>{{ $book['author'] ?: 'Penulis belum dicantumkan' }}</p>
+                            @if ($book['genre'])
+                                <p class="catalog-genre">{{ $book['genre'] }}</p>
+                            @endif
                             <div class="catalog-meta">
                                 <span>{{ $book['publication_year'] ?: 'Tahun tidak tersedia' }}</span>
                                 @if ($book['type'] === 'physical')
                                     <span>{{ (int) $book['available_stock'] }} tersedia</span>
                                 @else
-                                    <span>Akses terbatas</span>
+                                    <span>{{ (int) ($book['digital_available'] ?? 0) }} dari {{ (int) $book['digital_copies'] }} tersedia</span>
                                 @endif
                             </div>
-                            @if ($book['type'] === 'digital' && $book['digital_file_path'] && Auth::check())<a class="catalog-action button button-primary" href="/digital?id={{ (int) $book['id'] }}">Buka PDF</a>@endif
-                            @if ($book['type'] === 'physical' && Auth::check() && Auth::user()->role === 'anggota')
+                            @if ($book['type'] === 'digital' && $book['digital_file_path'])
+                                @php
+                                    $role = Auth::check() ? Auth::user()->role : null;
+                                    $hasLoan = Auth::check() && isset($userDigitalLoans[(int) $book['id']]);
+                                    $digitalAvailable = (int) ($book['digital_available'] ?? 0);
+                                    $digitalReservation = $userReservations[(int) $book['id']] ?? null;
+                                @endphp
+                                @if ($role === null)
+                                    <a class="catalog-status catalog-link" href="/login">Masuk untuk meminjam</a>
+                                @elseif ($role === 'pustakawan')
+                                    <a class="catalog-action button button-primary" href="/digital/stream?id={{ (int) $book['id'] }}#toolbar=0" target="_blank" rel="noopener">Baca</a>
+                                @elseif (in_array($role, ['anggota', 'eksternal'], true))
+                                    @if ($hasLoan)
+                                        <div class="catalog-actions">
+                                            <a class="catalog-action button button-primary" href="/digital/stream?id={{ (int) $book['id'] }}#toolbar=0" target="_blank" rel="noopener">Baca</a>
+                                            <form class="catalog-action" method="post" action="/digital/return">
+                                                @csrf
+                                                <input type="hidden" name="catalog_id" value="{{ (int) $book['id'] }}">
+                                                <input type="hidden" name="return_query" value="{{ $query }}">
+                                                <input type="hidden" name="return_type" value="{{ $type }}">
+                                                <input type="hidden" name="return_genre" value="{{ $genre }}">
+                                                <button class="button button-outline" type="submit">Kembalikan</button>
+                                            </form>
+                                        </div>
+                                    @elseif ($digitalAvailable > 0)
+                                        <form class="catalog-action" method="post" action="/digital/borrow">
+                                            @csrf
+                                            <input type="hidden" name="catalog_id" value="{{ (int) $book['id'] }}">
+                                            <input type="hidden" name="return_query" value="{{ $query }}">
+                                            <input type="hidden" name="return_type" value="{{ $type }}">
+                                            <input type="hidden" name="return_genre" value="{{ $genre }}">
+                                            <button class="button button-primary" type="submit">Pinjam</button>
+                                        </form>
+                                    @elseif ($digitalReservation)
+                                        <div class="catalog-status">
+                                            {{ $digitalReservation['status'] === 'waiting_list' ? 'Anda ada di daftar tunggu.' : 'Reservasi aktif: ' . $digitalReservation['reservation_code'] }}
+                                        </div>
+                                    @else
+                                        <form class="catalog-action" method="post" action="/digital/waitlist">
+                                            @csrf
+                                            <input type="hidden" name="catalog_id" value="{{ (int) $book['id'] }}">
+                                            <input type="hidden" name="return_query" value="{{ $query }}">
+                                            <input type="hidden" name="return_type" value="{{ $type }}">
+                                            <input type="hidden" name="return_genre" value="{{ $genre }}">
+                                            <button class="button button-outline" type="submit">Daftar Tunggu</button>
+                                        </form>
+                                    @endif
+                                @endif
+                            @endif
+                            @if ($book['type'] === 'physical' && $book['access_mode'] === 'borrowable' && Auth::check() && Auth::user()->role === 'anggota')
                                 @php($reservation = $userReservations[(int) $book['id']] ?? null)
                                 @if ($reservation)
                                     <div class="catalog-status">
@@ -55,6 +112,7 @@
                                         <input type="hidden" name="catalog_id" value="{{ (int) $book['id'] }}">
                                         <input type="hidden" name="return_query" value="{{ $query }}">
                                         <input type="hidden" name="return_type" value="{{ $type }}">
+                                        <input type="hidden" name="return_genre" value="{{ $genre }}">
                                         <button class="button button-primary" type="submit">Reservasi buku</button>
                                     </form>
                                 @else
@@ -63,11 +121,12 @@
                                         <input type="hidden" name="catalog_id" value="{{ (int) $book['id'] }}">
                                         <input type="hidden" name="return_query" value="{{ $query }}">
                                         <input type="hidden" name="return_type" value="{{ $type }}">
+                                        <input type="hidden" name="return_genre" value="{{ $genre }}">
                                         <button class="button button-outline" type="submit">Daftar tunggu</button>
                                     </form>
                                 @endif
                             @elseif ($book['type'] === 'physical')
-                                <a class="catalog-status catalog-link" href="/login">Masuk untuk reservasi</a>
+                                <div class="catalog-status">Baca di perpustakaan</div>
                             @endif
                         </article>
                     @endforeach

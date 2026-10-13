@@ -2,7 +2,7 @@
 <html lang="id">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ $pageTitle }} | Digital Library BI</title><link rel="stylesheet" href="/assets/css/style.css"></head>
 <body>@include('partials.site-header')<main class="auth-page"><div class="auth-card">
-    <p class="eyebrow auth-eyebrow">Pengguna eksternal</p><h1>Buat akun perpustakaan.</h1><p class="auth-intro">Akun eksternal perlu verifikasi email dan persetujuan pustakawan sebelum dapat mengakses koleksi digital.</p>
+    <p class="eyebrow auth-eyebrow">Pengguna eksternal</p><h1>Buat akun perpustakaan.</h1><p class="auth-intro">Akun eksternal perlu verifikasi email sebelum dapat mengakses koleksi digital.</p>
     @if ($errors->any()) <div class="notice notice-error">{{ $errors->first() }}</div> @endif
     <form class="auth-form" method="post" action="/register">
         @csrf

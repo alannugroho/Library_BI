@@ -35,8 +35,12 @@ CREATE TABLE catalog_books (
     publication_year SMALLINT UNSIGNED NULL,
     isbn VARCHAR(50) NULL,
     udc_classification VARCHAR(100) NULL,
+    collection_type ENUM('book', 'journal', 'magazine') NOT NULL DEFAULT 'book',
+    genre VARCHAR(100) NULL,
+    access_mode ENUM('borrowable', 'reading_room') NOT NULL DEFAULT 'borrowable',
     type ENUM('physical', 'digital') NOT NULL,
     digital_file_path VARCHAR(255) NULL,
+    digital_copies INT UNSIGNED NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_catalog_title (title),
@@ -90,12 +94,34 @@ CREATE TABLE circulations (
     INDEX idx_circulations_item (book_item_id, status)
 ) ENGINE=InnoDB;
 
+CREATE TABLE digital_loans (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    catalog_id INT UNSIGNED NOT NULL,
+    borrowed_at DATETIME NOT NULL,
+    due_at DATETIME NOT NULL,
+    returned_at DATETIME NULL,
+    status ENUM('active', 'returned', 'expired') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_digital_loans_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_digital_loans_catalog
+        FOREIGN KEY (catalog_id) REFERENCES catalog_books (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_digital_loans_catalog (catalog_id, status),
+    INDEX idx_digital_loans_user (user_id, status)
+) ENGINE=InnoDB;
+
 CREATE TABLE book_proposals (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
     title VARCHAR(255) NOT NULL,
     author VARCHAR(255) NULL,
     publisher VARCHAR(255) NULL,
+    publication_year SMALLINT UNSIGNED NULL,
+    isbn_issn VARCHAR(50) NULL,
+    purpose TEXT NULL,
     status ENUM('submitted', 'reviewed', 'approved', 'rejected') NOT NULL DEFAULT 'submitted',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_book_proposals_user

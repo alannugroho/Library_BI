@@ -24,8 +24,8 @@ WHERE NOT EXISTS (
     SELECT 1 FROM catalog_books WHERE isbn = '9786020000002'
 );
 
-INSERT INTO catalog_books (title, author, publisher, publication_year, isbn, udc_classification, type)
-SELECT 'Literasi Digital untuk Pendidikan', 'Tim Literasi Nasional', 'Pusat Data dan Teknologi', 2023, '9786020000003', '020', 'digital'
+INSERT INTO catalog_books (title, author, publisher, publication_year, isbn, udc_classification, type, digital_copies)
+SELECT 'Literasi Digital untuk Pendidikan', 'Tim Literasi Nasional', 'Pusat Data dan Teknologi', 2023, '9786020000003', '020', 'digital', 2
 WHERE NOT EXISTS (
     SELECT 1 FROM catalog_books WHERE isbn = '9786020000003'
 );

@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\VerifyEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 final class RegistrationController extends Controller
 {
@@ -37,9 +38,12 @@ final class RegistrationController extends Controller
             ]);
         });
 
-        $message = 'Registrasi berhasil. Akun Anda menunggu verifikasi email dan persetujuan pustakawan.';
+        $verificationUrl = url('/verify-email?token='.urlencode($plainToken));
+        Mail::to($data['email'])->send(new VerifyEmail($verificationUrl));
+
+        $message = 'Registrasi berhasil. Kami telah mengirim tautan verifikasi ke email Anda. Silakan verifikasi untuk mengaktifkan akun.';
         if (app()->environment('local')) {
-            $message .= ' Tautan pengujian: ' . url('/verify-email?token=' . urlencode($plainToken));
+            $message .= ' Tautan pengujian: '.$verificationUrl;
         }
 
         return redirect('/login')->with('flash', ['type' => 'success', 'message' => $message]);
@@ -63,7 +67,8 @@ final class RegistrationController extends Controller
                         ->update(['verified_at' => now()]);
                     DB::table('users')
                         ->where('id', $verification->user_id)
-                        ->update(['status' => 'pending']);
+                        ->where('status', 'pending')
+                        ->update(['status' => 'active']);
                 });
                 $verified = true;
             }
